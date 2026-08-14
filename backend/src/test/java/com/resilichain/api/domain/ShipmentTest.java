@@ -54,15 +54,124 @@ class ShipmentTest {
     }
 
     @Test
-    void setStatusRejectsNull() {
+    void fullLifecycleTransitionsThroughEachState() {
         Shipment shipment = new Shipment(route, warehouse, port, 1, Instant.now());
-        assertThrows(IllegalArgumentException.class, () -> shipment.setStatus(null));
+
+        shipment.startTransit();
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.IN_TRANSIT);
+
+        shipment.markDelayed();
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.DELAYED);
+
+        shipment.reroute();
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.REROUTED);
+
+        shipment.markDelivered();
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.DELIVERED);
     }
 
     @Test
-    void setStatusAllowsLifecycleTransition() {
+    void delayedShipmentCanResumeTransitWithoutRerouting() {
         Shipment shipment = new Shipment(route, warehouse, port, 1, Instant.now());
-        shipment.setStatus(ShipmentStatus.IN_TRANSIT);
+        shipment.startTransit();
+        shipment.markDelayed();
+
+        shipment.resumeTransit();
+
         assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.IN_TRANSIT);
+    }
+
+    @Test
+    void cancelIsAllowedFromPlannedInTransitDelayedAndRerouted() {
+        Shipment planned = new Shipment(route, warehouse, port, 1, Instant.now());
+        planned.cancel();
+        assertThat(planned.getStatus()).isEqualTo(ShipmentStatus.CANCELLED);
+
+        Shipment inTransit = new Shipment(route, warehouse, port, 1, Instant.now());
+        inTransit.startTransit();
+        inTransit.cancel();
+        assertThat(inTransit.getStatus()).isEqualTo(ShipmentStatus.CANCELLED);
+
+        Shipment delayed = new Shipment(route, warehouse, port, 1, Instant.now());
+        delayed.startTransit();
+        delayed.markDelayed();
+        delayed.cancel();
+        assertThat(delayed.getStatus()).isEqualTo(ShipmentStatus.CANCELLED);
+
+        Shipment rerouted = new Shipment(route, warehouse, port, 1, Instant.now());
+        rerouted.startTransit();
+        rerouted.markDelayed();
+        rerouted.reroute();
+        rerouted.cancel();
+        assertThat(rerouted.getStatus()).isEqualTo(ShipmentStatus.CANCELLED);
+    }
+
+    @Test
+    void skippingStatesThrowsIllegalState() {
+        Shipment shipment = new Shipment(route, warehouse, port, 1, Instant.now());
+        assertThrows(IllegalStateException.class, shipment::markDelivered);
+        assertThrows(IllegalStateException.class, shipment::markDelayed);
+        assertThrows(IllegalStateException.class, shipment::reroute);
+    }
+
+    @Test
+    void terminalStatesRejectFurtherTransitions() {
+        Shipment delivered = new Shipment(route, warehouse, port, 1, Instant.now());
+        delivered.startTransit();
+        delivered.markDelivered();
+        assertThrows(IllegalStateException.class, delivered::startTransit);
+        assertThrows(IllegalStateException.class, delivered::cancel);
+
+        Shipment cancelled = new Shipment(route, warehouse, port, 1, Instant.now());
+        cancelled.cancel();
+        assertThrows(IllegalStateException.class, cancelled::startTransit);
+        assertThrows(IllegalStateException.class, cancelled::markDelivered);
+    }
+
+    @Test
+    void advanceToInTransitPicksStartOrResumeBasedOnCurrentStatus() {
+        Shipment fromPlanned = new Shipment(route, warehouse, port, 1, Instant.now());
+        fromPlanned.advanceTo(ShipmentStatus.IN_TRANSIT);
+        assertThat(fromPlanned.getStatus()).isEqualTo(ShipmentStatus.IN_TRANSIT);
+
+        Shipment fromDelayed = new Shipment(route, warehouse, port, 1, Instant.now());
+        fromDelayed.startTransit();
+        fromDelayed.markDelayed();
+        fromDelayed.advanceTo(ShipmentStatus.IN_TRANSIT);
+        assertThat(fromDelayed.getStatus()).isEqualTo(ShipmentStatus.IN_TRANSIT);
+    }
+
+    @Test
+    void advanceToDispatchesToTheMatchingNamedTransition() {
+        Shipment shipment = new Shipment(route, warehouse, port, 1, Instant.now());
+
+        shipment.advanceTo(ShipmentStatus.IN_TRANSIT);
+        shipment.advanceTo(ShipmentStatus.DELAYED);
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.DELAYED);
+
+        shipment.advanceTo(ShipmentStatus.REROUTED);
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.REROUTED);
+
+        shipment.advanceTo(ShipmentStatus.DELIVERED);
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.DELIVERED);
+    }
+
+    @Test
+    void advanceToCancelledCancelsFromAnyNonTerminalStatus() {
+        Shipment shipment = new Shipment(route, warehouse, port, 1, Instant.now());
+        shipment.advanceTo(ShipmentStatus.CANCELLED);
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.CANCELLED);
+    }
+
+    @Test
+    void advanceToPlannedIsNeverValid() {
+        Shipment shipment = new Shipment(route, warehouse, port, 1, Instant.now());
+        assertThrows(IllegalStateException.class, () -> shipment.advanceTo(ShipmentStatus.PLANNED));
+    }
+
+    @Test
+    void advanceToAnUnreachableTargetThrows() {
+        Shipment shipment = new Shipment(route, warehouse, port, 1, Instant.now());
+        assertThrows(IllegalStateException.class, () -> shipment.advanceTo(ShipmentStatus.DELIVERED));
     }
 }

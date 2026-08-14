@@ -13,6 +13,18 @@ spring:
   flyway:
     enabled: false
 
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: resilichain-api-test
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Ordinary tests don't need a live broker; the one test that does (EventConsumerIntegrationTest)
+      # overrides both properties to point at its @EmbeddedKafka instance and turn this back on.
+      auto-startup: false
+
 app:
   jwt:
     secret: test-only-secret-key-at-least-32-bytes-long-for-hs256

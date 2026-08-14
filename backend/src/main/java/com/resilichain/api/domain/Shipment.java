@@ -1,5 +1,6 @@
 package com.resilichain.api.domain;
 
+import com.resilichain.api.pattern.state.ShipmentState;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.function.UnaryOperator;
 
 @Entity
 @Table(name = "shipment")
@@ -33,7 +35,6 @@ public class Shipment {
     @JoinColumn(name = "destination_id", nullable = false)
     private NetworkNode destination;
 
-    // Plain enum for Week 1; Stage 5 replaces status mutation with the State design pattern.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ShipmentStatus status;
@@ -84,8 +85,63 @@ public class Shipment {
         return status;
     }
 
-    public void setStatus(ShipmentStatus status) {
-        this.status = Guard.notNull(status, "status");
+    /** Planned -> InTransit. */
+    public void startTransit() {
+        transition(ShipmentState::start);
+    }
+
+    /** InTransit/Rerouted -> Delayed. */
+    public void markDelayed() {
+        transition(ShipmentState::delay);
+    }
+
+    /** Delayed/Rerouted -> InTransit (recovered without changing route). */
+    public void resumeTransit() {
+        transition(ShipmentState::resumeTransit);
+    }
+
+    /** Delayed -> Rerouted. */
+    public void reroute() {
+        transition(ShipmentState::reroute);
+    }
+
+    /** InTransit/Rerouted -> Delivered. */
+    public void markDelivered() {
+        transition(ShipmentState::deliver);
+    }
+
+    /** Planned/InTransit/Delayed/Rerouted -> Cancelled. */
+    public void cancel() {
+        transition(ShipmentState::cancel);
+    }
+
+    private void transition(UnaryOperator<ShipmentState> transitionFn) {
+        ShipmentState next = transitionFn.apply(ShipmentState.of(this.status));
+        this.status = next.status();
+    }
+
+    /**
+     * Applies whichever named transition reaches the given target status from the shipment's
+     * current status (e.g. IN_TRANSIT means startTransit() from PLANNED but resumeTransit() from
+     * DELAYED/REROUTED). For an external event source (e.g. a Kafka consumer) that only knows the
+     * status a shipment reached, not which action produced it. Throws IllegalStateException via
+     * the same guarded transitions as the named methods if the target isn't reachable from here.
+     */
+    public void advanceTo(ShipmentStatus toStatus) {
+        switch (toStatus) {
+            case IN_TRANSIT -> {
+                if (status == ShipmentStatus.PLANNED) {
+                    startTransit();
+                } else {
+                    resumeTransit();
+                }
+            }
+            case DELAYED -> markDelayed();
+            case REROUTED -> reroute();
+            case DELIVERED -> markDelivered();
+            case CANCELLED -> cancel();
+            case PLANNED -> throw new IllegalStateException("PLANNED is not a valid transition target");
+        }
     }
 
     public int getQuantity() {

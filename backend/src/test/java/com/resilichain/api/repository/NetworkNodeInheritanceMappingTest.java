@@ -83,7 +83,8 @@ class NetworkNodeInheritanceMappingTest {
         Route route = routeRepository.save(new Route(warehouse, port, new BigDecimal("250.00"), 18, 800));
 
         Shipment shipment = new Shipment(route, warehouse, port, 120, Instant.now());
-        shipment.setStatus(ShipmentStatus.DELAYED);
+        shipment.startTransit();
+        shipment.markDelayed();
         Long shipmentId = shipmentRepository.save(shipment).getId();
 
         Shipment reloaded = shipmentRepository.findById(shipmentId).orElseThrow();

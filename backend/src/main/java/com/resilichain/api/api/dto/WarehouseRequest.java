@@ -1,0 +1,15 @@
+package com.resilichain.api.api.dto;
+
+import com.resilichain.api.domain.NodeStatus;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record WarehouseRequest(
+        @NotBlank String name,
+        double latitude,
+        double longitude,
+        @NotNull NodeStatus status,
+        int capacity,
+        int currentStock
+) {
+}
