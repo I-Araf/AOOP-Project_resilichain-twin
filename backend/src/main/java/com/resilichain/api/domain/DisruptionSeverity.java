@@ -33,4 +33,12 @@ public enum DisruptionSeverity {
             case HIGH, CRITICAL -> PortOperationalStatus.CLOSED;
         };
     }
+
+    /** Mutates the given node's status (and its port operational status, if applicable) to reflect this severity. */
+    public void applyTo(NetworkNode node) {
+        node.setStatus(this.toNodeStatus());
+        if (node instanceof Port port) {
+            port.setOperationalStatus(this.toPortOperationalStatus());
+        }
+    }
 }

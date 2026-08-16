@@ -34,6 +34,7 @@ public class SecurityConfig {
                         .requestMatchers("/auth/login", "/health", "/ws/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/network/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/disruptions").hasAnyRole("PLANNER", "ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) ->

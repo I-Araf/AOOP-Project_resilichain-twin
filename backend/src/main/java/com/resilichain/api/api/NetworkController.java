@@ -2,6 +2,7 @@ package com.resilichain.api.api;
 
 import com.resilichain.api.api.dto.FactoryRequest;
 import com.resilichain.api.api.dto.FactoryResponse;
+import com.resilichain.api.api.dto.NetworkGraphResponse;
 import com.resilichain.api.api.dto.PortRequest;
 import com.resilichain.api.api.dto.PortResponse;
 import com.resilichain.api.api.dto.RouteRequest;
@@ -100,6 +101,11 @@ public class NetworkController {
         Port port = new Port(request.name(), request.latitude(), request.longitude(),
                 request.status(), request.throughputCapacity(), request.operationalStatus());
         return PortResponse.from(portRepository.save(port));
+    }
+
+    @GetMapping("/graph")
+    public NetworkGraphResponse networkGraph() {
+        return NetworkGraphResponse.from(networkNodeRepository.findAll(), routeRepository.findAll());
     }
 
     @GetMapping("/routes")

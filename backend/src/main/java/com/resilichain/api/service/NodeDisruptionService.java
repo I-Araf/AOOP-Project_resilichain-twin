@@ -2,7 +2,6 @@ package com.resilichain.api.service;
 
 import com.resilichain.api.domain.DisruptionSeverity;
 import com.resilichain.api.domain.NetworkNode;
-import com.resilichain.api.domain.Port;
 import com.resilichain.api.kafka.dto.DisruptionEventPayload;
 import com.resilichain.api.repository.NetworkNodeRepository;
 import com.resilichain.api.websocket.dto.NodeStatusUpdateMessage;
@@ -27,10 +26,7 @@ public class NodeDisruptionService {
                 .orElseThrow(() -> new NoSuchElementException("No network node with id " + payload.nodeId()));
 
         DisruptionSeverity severity = DisruptionSeverity.parse(payload.severity());
-        node.setStatus(severity.toNodeStatus());
-        if (node instanceof Port port) {
-            port.setOperationalStatus(severity.toPortOperationalStatus());
-        }
+        severity.applyTo(node);
         networkNodeRepository.save(node);
 
         messagingTemplate.convertAndSend("/topic/network", NodeStatusUpdateMessage.from(node, payload.occurredAt()));
