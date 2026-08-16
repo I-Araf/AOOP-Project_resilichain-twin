@@ -136,4 +136,41 @@ class NetworkControllerTest {
                         .content(objectMapper.writeValueAsString(routeRequest)))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void networkGraphReturnsAllNodesAndAllRoutes() throws Exception {
+        String adminToken = tokenFor(ADMIN_EMAIL, "ADMIN");
+        String plannerToken = tokenFor(PLANNER_EMAIL, "PLANNER");
+
+        SupplierRequest supplierRequest = new SupplierRequest("Graph Supplier", 22.35, 91.83, NodeStatus.OPERATIONAL, 0.9, 5);
+        String supplierJson = mockMvc.perform(post("/network/suppliers")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(supplierRequest)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long originId = objectMapper.readTree(supplierJson).get("id").asLong();
+
+        WarehouseRequest warehouseRequest = new WarehouseRequest("Graph Warehouse", 22.33, 91.80, NodeStatus.OPERATIONAL, 1000, 200);
+        String warehouseJson = mockMvc.perform(post("/network/warehouses")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(warehouseRequest)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long destinationId = objectMapper.readTree(warehouseJson).get("id").asLong();
+
+        RouteRequest routeRequest = new RouteRequest(originId, destinationId, new BigDecimal("100.00"), 10, 500);
+        mockMvc.perform(post("/network/routes")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(routeRequest)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/network/graph").header("Authorization", "Bearer " + plannerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nodes[?(@.name == 'Graph Supplier')]").exists())
+                .andExpect(jsonPath("$.nodes[?(@.name == 'Graph Warehouse')]").exists())
+                .andExpect(jsonPath("$.routes[?(@.originName == 'Graph Supplier')]").exists());
+    }
 }
